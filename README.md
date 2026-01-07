@@ -1,5 +1,6 @@
 # 1) Create and activate venv 
 python -m venv venv 
+
 venv\Scripts\activate 
 
 # 2) Install dependencies 
