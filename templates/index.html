@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>CM3035 - World health API</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; line-height: 1.4; }
+    code { background: #f3f3f3; padding: 2px 6px; border-radius: 4px; }
+    .box { border: 1px solid #ddd; padding: 14px; border-radius: 8px; margin: 14px 0; }
+    .muted { color: #555; }
+    .ep { margin: 10px 0; }
+    a { word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h1>World Health API: Life Expectancy & Suicide Mortality (WHO)</h1>
+
+  <div class="box">
+    <div><strong>Admin:</strong> <a href="{{ admin_url }}" target="_blank">{{ admin_url }}</a></div>
+    <div><strong>Login:</strong> {{ admin_user }} / {{ admin_pass }}</div>
+  </div>
+
+  <div class="box">
+    <div><strong>Environment</strong></div>
+    <div class="muted">OS: {{ os_info }}</div>
+    <div class="muted">Python: {{ python_version }}</div>
+    <div class="muted">Django: {{ django_version }}</div>
+    <div class="muted">
+      Packages:
+      {% for k,v in packages.items %}
+        <span><code>{{ k }}=={{ v }}</code></span>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="box">
+    <div><strong>Seed + Tests</strong></div>
+    <div>Seed database: <code>{{ seed_cmd }}</code></div>
+    <div>Run tests: <code>{{ test_cmd }}</code></div>
+    <div class="muted" style="margin-top:6px;">
+      <span style="display:inline-block; padding:2px 8px; border:1px solid #ccc; border-radius:999px; font-size:12px;">Swagger auth</span>
+      <span class="muted">Authorise in <a href="http://127.0.0.1:8000/api/docs/" target="_blank">/api/docs/</a> (Swagger button: “Authorize”); shows <strong>Logout</strong> when active; required for write actions on <code>/api/notes/</code>.</span>
+    </div>
+  </div>
+
+  <h2>RESTful endpoint hyperlinks</h2>
+  <div class="box">
+    {% for ep in endpoints %}
+      <div class="ep">
+        <div><strong>{{ ep.method }}</strong> <a href="{{ ep.url }}" target="_blank">{{ ep.url }}</a></div>
+        <div class="muted">{{ ep.desc }}</div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <h2>POST example (Notes)</h2>
+  <div class="box">
+    <div class="muted">Example cURL:</div>
+    <pre><code>curl -X POST "http://127.0.0.1:8000/api/notes/" ^
+  -u admin:admin1234 ^
+  -H "Content-Type: application/json" ^
+  -d "{\"title\":\"Test\",\"body\":\"Created via POST\",\"country\":null}"</code></pre>
+  </div>
+
+  <h2>Data load</h2>
+  <div class="box">
+    <div class="muted">CSV files live in <code>data/</code>. The loader script is:</div>
+    <div><code>health/management/commands/load_who_data.py</code></div>
+  </div>
+
+  <h2>AJAX API Explorer (single-page demo)</h2>
+  <div class="box">
+    <div class="muted">
+      This small widget uses <code>fetch()</code> to call the REST API without reloading the page.
+      It demonstrates AJAX / single-page interaction.
+    </div>
+
+    <div style="margin-top:10px;">
+      <label>Country:</label>
+      <input id="ajaxCountry" list="countryList" placeholder="e.g., Singapore" style="padding:6px; width: 220px;" />
+      <datalist id="countryList"></datalist>
+
+      <label style="margin-left:10px;">Year:</label>
+      <input id="ajaxYear" type="number" value="2015" min="1960" max="2025" style="padding:6px; width: 90px;" />
+
+      <button id="btnSummary" style="padding:6px 10px; margin-left:10px;">Fetch summary</button>
+    </div>
+
+    <pre id="ajaxOut" style="margin-top:12px; overflow:auto; max-height:260px; background:#f7f7f7; padding:10px; border-radius:6px;"></pre>
+  </div>
+
+  <script>
+    (function () {
+      const out = document.getElementById("ajaxOut");
+      const countryEl = document.getElementById("ajaxCountry");
+      const yearEl = document.getElementById("ajaxYear");
+
+      function show(obj) {
+        out.textContent = JSON.stringify(obj, null, 2);
+      }
+
+      async function loadCountries() {
+        try {
+          const r = await fetch("/api/countries/");
+          const j = await r.json();
+          const items = Array.isArray(j) ? j : (j.results || []);
+          const dl = document.getElementById("countryList");
+          dl.innerHTML = "";
+          items.slice(0, 200).forEach((c) => {
+            const opt = document.createElement("option");
+            opt.value = c.name;
+            dl.appendChild(opt);
+          });
+        } catch (e) {
+          // Non-fatal
+        }
+      }
+
+      async function fetchSummary() {
+        const country = (countryEl.value || "Singapore").trim();
+        const year = parseInt(yearEl.value || "2015", 10);
+        if (!country) {
+          show({ error: "Please enter a country name." });
+          return;
+        }
+        show({ loading: true, country, year });
+        try {
+          const url = "/api/insights/country-summary/?country=" + encodeURIComponent(country) + "&year=" + encodeURIComponent(year);
+          const r = await fetch(url);
+          const j = await r.json();
+          show(j);
+        } catch (e) {
+          show({ error: "Request failed", details: String(e) });
+        }
+      }
+
+      document.getElementById("btnSummary").addEventListener("click", function (ev) {
+        ev.preventDefault();
+        fetchSummary();
+      });
+
+      loadCountries();
+      // Initial preview
+      fetchSummary();
+    })();
+  </script>
+
+</body>
+</html>
